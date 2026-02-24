@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WIBU STREAM - OVERLORD SSS</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Poppins:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+
+    <style>
+        :root {
+            --blue: #00f2ff;
+            --blue-g: linear-gradient(90deg, #00f2ff, #0066ff);
+            --red: #ff004c;
+            --red-g: linear-gradient(90deg, #ff004c, #7a0024);
+            --gold: #ffd700;
+            --gold-g: linear-gradient(45deg, #ffd700, #ff8800);
+            --purple: #bc13fe;
+            --bg: #010208;
+            --card: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+            --glass: rgba(10, 11, 20, 0.98);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        ::-webkit-scrollbar { display: none; }
+
+        body {
+            background: var(--bg);
+            color: #fff;
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(0, 242, 255, 0.05) 0%, transparent 50%),
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 30px 30px, 30px 30px;
+        }
+
+        /* --- LOADING SCANNER --- */
+        #loader {
+            position: fixed; inset: 0; background: #000; z-index: 999999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .scanner {
+            width: 250px; height: 2px; background: var(--blue);
+            box-shadow: 0 0 20px var(--blue); animation: scan 2s infinite;
+        }
+        @keyframes scan { 0%, 100% { transform: translateY(-50px); } 50% { transform: translateY(50px); } }
+
+        /* --- LOGIN GATE --- */
+        #login-gate { 
+            position: fixed; inset: 0; background: #000; z-index: 999998;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            background-image: url('https://wallpaperaccess.com/full/199430.jpg');
+            background-size: cover; background-position: center;
+        }
+        .login-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); }
+        .login-card {
+            position: relative; z-index: 10; padding: 40px; background: rgba(10, 11, 20, 0.8);
+            border: 1px solid var(--blue); border-radius: 30px; text-align: center;
+            box-shadow: 0 0 50px rgba(0, 242, 255, 0.2); width: 85%; max-width: 400px;
+        }
+        .login-btn {
+            margin-top: 30px; width: 100%; padding: 18px; background: #fff; color: #000;
+            border: none; border-radius: 15px; font-family: 'Orbitron'; font-weight: 900;
+            display: flex; align-items: center; justify-content: center; gap: 12px; cursor: pointer;
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .login-btn:active { transform: scale(0.9); }
+
+        /* --- HUD TOP --- */
+        .hud-top {
+            position: sticky; top: 0; z-index: 1000;
+            background: var(--glass); padding: 15px 20px;
+            border-bottom: 1px solid var(--border); backdrop-filter: blur(20px);
+        }
+        .user-profile { display: flex; align-items: center; gap: 15px; }
+        .pfp-wrap { position: relative; }
+        .pfp-wrap img { width: 55px; height: 55px; border-radius: 15px; border: 2px solid var(--blue); object-fit: cover; }
+        .pfp-wrap .badge {
+            position: absolute; -right: 5px; -bottom: 5px;
+            background: var(--gold); color: #000; font-size: 8px;
+            font-weight: 900; padding: 3px 6px; border-radius: 5px; border: 2px solid #000;
+        }
+        .user-info { flex: 1; }
+        .user-info b { font-family: 'Orbitron'; font-size: 15px; letter-spacing: 1px; display: block; }
+        .rank-text { font-size: 10px; font-weight: 800; color: var(--gold); text-transform: uppercase; }
+
+        .exp-container { width: 100%; height: 6px; background: #111; border-radius: 10px; margin-top: 8px; overflow: hidden; border: 1px solid var(--border); }
+        .exp-bar { height: 100%; background: var(--blue-g); width: 0%; transition: 1.5s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 10px var(--blue); }
+
+        /* --- SEARCH & GENRES --- */
+        .search-area { padding: 20px; }
+        .search-input {
+            width: 100%; background: var(--card); border: 1px solid var(--border);
+            padding: 18px 25px; border-radius: 20px; color: #fff; font-family: 'Poppins';
+            font-size: 14px; transition: 0.3s;
+        }
+        .search-input:focus { border-color: var(--blue); background: rgba(255,255,255,0.05); }
+
+        .genre-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 0 20px 20px; }
+        .genre-item {
+            padding: 10px 22px; background: var(--card); border: 1px solid var(--border);
+            border-radius: 12px; font-size: 12px; white-space: nowrap; cursor: pointer;
+            font-weight: 600; color: #aaa; transition: 0.3s;
+        }
+        .genre-item.active { background: var(--blue); color: #000; border-color: var(--blue); font-weight: 800; box-shadow: 0 0 15px rgba(0, 242, 255, 0.3); }
+
+        /* --- HERO BANNER --- */
+        .hero { width: 100%; height: 380px; position: relative; overflow: hidden; background: #000; }
+        .slides { display: flex; width: 100%; height: 100%; transition: 0.8s cubic-bezier(0.645, 0.045, 0.355, 1); }
+        .slide-item { min-width: 100%; height: 100%; position: relative; }
+        .slide-item video, .slide-item img { width: 100%; height: 100%; object-fit: cover; opacity: 0.6; }
+        .hero-meta { position: absolute; bottom: 50px; left: 25px; right: 25px; z-index: 10; }
+        .hero-meta h2 { font-family: 'Orbitron'; font-size: 28px; margin: 0; text-shadow: 0 3px 15px #000; }
+        .hero-meta p { font-size: 13px; color: var(--blue); margin: 5px 0; font-weight: 800; letter-spacing: 1px; }
+        .hero-overlay { position: absolute; inset: 0; background: linear-gradient(0deg, var(--bg) 10%, transparent 70%); }
+
+        /* --- TOP 10 LIST --- */
+        .section-title { padding: 0 25px; margin: 30px 0 15px; }
+        .section-title h3 { font-family: 'Orbitron'; font-size: 18px; border-left: 5px solid var(--blue); padding-left: 12px; margin: 0; }
+        
+        .top-container { display: flex; overflow-x: auto; gap: 45px; padding: 20px 40px; }
+        .top-box { flex: 0 0 160px; position: relative; cursor: pointer; transition: 0.3s; }
+        .top-num {
+            position: absolute; left: -50px; bottom: -15px; font-family: 'Orbitron';
+            font-size: 130px; font-weight: 900; color: transparent;
+            -webkit-text-stroke: 2px var(--blue); z-index: 0; opacity: 0.35;
+        }
+        .top-img {
+            width: 160px; height: 230px; border-radius: 25px; overflow: hidden;
+            position: relative; z-index: 1; border: 1px solid var(--border);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.6);
+        }
+        .top-img img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* --- GRID CARDS --- */
+        .anime-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; }
+        .anime-card { background: var(--card); border-radius: 22px; overflow: hidden; border: 1px solid var(--border); transition: 0.4s; position: relative; }
+        .anime-card:hover { transform: translateY(-10px); border-color: var(--blue); }
+        .anime-card img { width: 100%; height: 220px; object-fit: cover; }
+        .anime-card-info { padding: 15px; }
+        .anime-card-info b { font-size: 13px; display: block; height: 38px; overflow: hidden; line-height: 1.4; }
+        .anime-tag { font-size: 10px; color: var(--blue); font-weight: 800; text-transform: uppercase; margin-bottom: 5px; display: block; }
+
+        /* --- ADMIN GOD PANEL --- */
+        .god-panel {
+            position: fixed; inset: 0; background: #000; z-index: 100000;
+            display: none; padding: 30px; overflow-y: auto;
+        }
+        .god-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--red); padding-bottom: 20px; }
+        .god-card { background: #0a0b14; border: 1px solid #1a1c2c; border-radius: 25px; padding: 25px; margin-top: 25px; }
+        .god-input { width: 100%; background: #000; border: 1px solid #333; color: #fff; padding: 15px; border-radius: 12px; margin: 10px 0; font-size: 14px; }
+        .god-btn { width: 100%; padding: 18px; border-radius: 12px; border: none; font-family: 'Orbitron'; font-weight: 900; cursor: pointer; margin-top: 15px; transition: 0.3s; }
+        
+        .genre-grid-admin { 
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; 
+            margin: 15px 0; height: 180px; overflow-y: auto; background: #000; 
+            padding: 15px; border-radius: 12px; border: 1px solid #222;
+        }
+        .genre-grid-admin label { font-size: 11px; display: flex; align-items: center; gap: 8px; color: #888; }
+        .genre-grid-admin input:checked + span { color: var(--blue); }
+
+        /* --- NAVIGATION --- */
+        .bottom-nav {
+            position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%);
+            width: 90%; height: 75px; background: var(--glass); border-radius: 40px;
+            display: flex; justify-content: space-around; align-items: center;
+            border: 1px solid var(--border); z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        }
+        .nav-item { color: #555; text-align: center; transition: 0.4s; cursor: pointer; position: relative; }
+        .nav-item.active { color: var(--blue); transform: translateY(-8px); }
+        .nav-item.active::after {
+            content: ''; position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%);
+            width: 5px; height: 5px; background: var(--blue); border-radius: 50%; box-shadow: 0 0 10px var(--blue);
+        }
+        .nav-item i { font-size: 24px; display: block; margin-bottom: 3px; }
+        .nav-item span { font-size: 10px; font-weight: 800; text-transform: uppercase; }
+
+        .page { display: none; padding-bottom: 150px; animation: slideUp 0.6s cubic-bezier(0.23, 1, 0.32, 1); }
+        .page.active { display: block; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- BUTTONS & MODALS --- */
+        .admin-float {
+            position: fixed; bottom: 120px; right: 25px; width: 65px; height: 65px;
+            background: var(--red-g); border-radius: 50%; border: none; color: #fff;
+            font-size: 28px; z-index: 9999; box-shadow: 0 0 25px rgba(255, 0, 76, 0.4);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .premium-modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 50000;
+            display: none; align-items: center; justify-content: center; padding: 25px; backdrop-filter: blur(20px);
+        }
+        .prem-card { width: 100%; max-width: 420px; background: #0a0b14; border: 2px solid var(--gold); border-radius: 35px; padding: 40px; position: relative; overflow: hidden; }
+        .prem-card::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, var(--gold), transparent 40%); animation: rotate 3s linear infinite; z-index: 0; }
+        .prem-card-inner { position: relative; z-index: 1; background: #0a0b14; border-radius: 30px; padding: 25px; }
+        .prem-btn { width: 100%; padding: 18px; background: var(--gold-g); border: none; border-radius: 15px; font-family: 'Orbitron'; font-weight: 900; color: #000; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <h1 style="font-family:'Orbitron'; color:var(--blue); letter-spacing:8px;">WIBU<span style="color:#fff">STREAM</span></h1>
+        <div class="scanner"></div>
+        <p style="font-family:'JetBrains Mono'; font-size:11px; margin-top:25px; opacity:0.6; letter-spacing:2px;">AUTHENTICATING OVERLORD...</p>
+    </div>
+
+    <div id="login-gate">
+        <div class="login-overlay"></div>
+        <div class="login-card">
+            <h1 style="font-family:'Orbitron'; color:var(--blue); margin:0; letter-spacing:3px;">LOGIN GATE</h1>
+            <p style="color:var(--red); font-weight:800; font-size:11px; margin:15px 0 30px; letter-spacing:2px; text-transform:uppercase;">Identitas Diperlukan Untuk Mengakses Sistem</p>
+            <button class="login-btn" onclick="app.login()">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" width="24px"> 
+                CONNECT VIA GOOGLE
+            </button>
+            <p style="margin-top:30px; font-size:10px; opacity:0.4;">Authorized access for Overlord Rank SSS only.</p>
+        </div>
+    </div>
+
+    <div id="app" style="display:none;">
+        
+        <header class="hud-top">
+            <div class="user-profile">
+                <div class="pfp-wrap">
+                    <img id="u-pfp" src="">
+                    <div id="u-badge" class="badge">SSS</div>
+                </div>
+                <div class="user-info">
+                    <b id="u-name">...</b>
+                    <span id="u-rank" class="rank-text">...</span>
+                    <div class="exp-container"><div id="u-exp-fill" class="exp-bar"></div></div>
+                    <div style="display:flex; justify-content:space-between; font-size:10px; margin-top:5px; font-family:'JetBrains Mono';">
+                        <span>LV <span id="u-lv">0</span></span>
+                        <span><span id="u-exp">0</span> / <span id="u-max-exp">0</span> EXP</span>
+                    </div>
+                </div>
+                <button onclick="app.logout()" style="background:var(--red); border:none; color:#fff; font-size:9px; padding:6px 12px; border-radius:8px; font-weight:900;">OUT</button>
+            </div>
+        </header>
+
+        <main id="p-home" class="page active">
+            <div class="search-area"><input type="text" class="search-input" placeholder="Cari Judul Anime Kasta SSS..." oninput="app.search(this.value)"></div>
+            <div class="genre-scroll" id="genre-list"></div>
+            
+            <div class="hero">
+                <div class="slides" id="banner-engine"></div>
+                <div class="hero-overlay"></div>
+                <div class="hero-meta">
+                    <p id="h-tag">EXCLUSIVE ACCESS</p>
+                    <h2 id="h-title">OVERLORD DASHBOARD</h2>
+                </div>
+            </div>
+
+            <div class="section-title"><h3>TOP 10 TERLARIS</h3></div>
+            <div class="top-container" id="top-grid"></div>
+
+            <div class="section-title"><h3>UPDATE TERBARU</h3></div>
+            <div class="anime-grid" id="main-grid"></div>
+        </main>
+
+        <main id="p-jadwal" class="page">
+            <h2 style="padding:25px; font-family:'Orbitron'; margin:0; letter-spacing:2px;">DAILY SCHEDULE</h2>
+            <div class="genre-scroll" id="day-list">
+                <div class="genre-item active" onclick="app.setDay('Senin', this)">SENIN</div>
+                <div class="genre-item" onclick="app.setDay('Selasa', this)">SELASA</div>
+                <div class="genre-item" onclick="app.setDay('Rabu', this)">RABU</div>
+                <div class="genre-item" onclick="app.setDay('Kamis', this)">KAMIS</div>
+                <div class="genre-item" onclick="app.setDay('Jumat', this)">JUMAT</div>
+                <div class="genre-item" onclick="app.setDay('Sabtu', this)">SABTU</div>
+                <div class="genre-item" onclick="app.setDay('Minggu', this)">MINGGU</div>
+            </div>
+            <div class="anime-grid" id="jadwal-grid"></div>
+        </main>
+
+        <main id="p-history" class="page">
+            <h2 style="padding:25px; font-family:'Orbitron';">RIWAYAT NONTON</h2>
+            <div class="anime-grid" id="history-grid"></div>
+        </main>
+
+        <main id="p-premium" class="page">
+            <div style="padding:50px 25px; text-align:center;">
+                <h1 style="font-family:'Orbitron'; font-size:45px; margin:0; color:var(--gold); letter-spacing:5px;">SUPREME</h1>
+                <h2 style="font-family:'Orbitron'; font-size:22px; margin:0; color:var(--gold); opacity:0.8;">THE ULTIMATE RANK</h2>
+                <div class="god-card" style="border-color:var(--gold); margin-top:40px;">
+                    <ul style="text-align:left; list-style:none; padding:0; font-size:13px; line-height:2.5;">
+                        <li><span style="color:var(--gold)">✦</span> No Ads Forever</li>
+                        <li><span style="color:var(--gold)">✦</span> 4K Ultra Cinematic</li>
+                        <li><span style="color:var(--gold)">✦</span> Exclusive Role SSS</li>
+                        <li><span style="color:var(--gold)">✦</span> Custom Profile Border</li>
+                    </ul>
+                    <button class="prem-btn" style="margin-top:30px;" onclick="app.buyPremium()">UNLOCK SUPREME - FREE</button>
+                </div>
+            </div>
+        </main>
+
+        <nav class="bottom-nav">
+            <div class="nav-item active" onclick="app.nav('home', this)"><i>🏠</i><span>Home</span></div>
+            <div class="nav-item" onclick="app.nav('jadwal', this)"><i>📅</i><span>Jadwal</span></div>
+            <div class="nav-item" onclick="app.nav('history', this)"><i>🕒</i><span>History</span></div>
+            <div class="nav-item" onclick="app.nav('premium', this)"><i style="color:var(--gold)">👑</i><span>Supreme</span></div>
+        </nav>
+
+        <button class="admin-float" onclick="app.toggleGod()">⚙️</button>
+    </div>
+
+    <div id="god" class="god-panel">
+        <div class="god-header">
+            <h1 style="font-family:'Orbitron'; color:var(--red); margin:0;">OVERLORD INJECTOR</h1>
+            <button onclick="app.toggleGod()" style="background:none; border:none; color:#fff; font-size:35px;">×</button>
+        </div>
+
+        <div class="god-card">
+            <h3 style="color:var(--blue); margin:0; font-size:14px; font-family:'Orbitron';">USER MODIFICATION</h3>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <input type="text" id="g-u-name" class="god-input" placeholder="New Name">
+                <input type="number" id="g-u-lv" class="god-input" placeholder="Set Level">
+            </div>
+            <select id="g-u-role" class="god-input">
+                <option value="Bronze User">Bronze User</option>
+                <option value="Gold VIP">Gold VIP</option>
+                <option value="SSS-RANK OVERLORD">SSS-RANK OVERLORD</option>
+            </select>
+            <button class="god-btn" style="background:var(--blue); color:#000;" onclick="app.applyUser()">APPLY USER DATA</button>
+        </div>
+
+        <div class="god-card">
+            <h3 style="color:var(--red); margin:0; font-size:14px; font-family:'Orbitron';">CONTENT INJECTION</h3>
+            <input type="text" id="g-title" class="god-input" placeholder="Judul Anime">
+            <input type="text" id="g-poster" class="god-input" placeholder="URL Poster Image">
+            <input type="text" id="g-banner" class="god-input" placeholder="URL Banner (MP4/JPG)">
+            
+            <p style="font-size:11px; margin:15px 0 5px; color:var(--blue);">SELECT GENRES:</p>
+            <div class="genre-grid-admin" id="admin-genre-list"></div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <select id="g-day" class="god-input">
+                    <option value="Senin">Senin</option><option value="Selasa">Selasa</option><option value="Rabu">Rabu</option><option value="Kamis">Kamis</option><option value="Jumat">Jumat</option><option value="Sabtu">Sabtu</option><option value="Minggu">Minggu</option>
+                </select>
+                <input type="number" id="g-top-slot" class="god-input" placeholder="Top 10 Slot (1-10)">
+            </div>
+            <button class="god-btn" style="background:var(--red); color:#fff;" onclick="app.publish()">INJECT TO DATABASE</button>
+        </div>
+        <button class="god-btn" style="background:#111; color:var(--red); border:1px solid var(--red); margin-top:40px;" onclick="app.resetData()">WIPE ALL SYSTEM DATA</button>
+    </div>
+
+    <div id="prem-success" class="premium-modal">
+        <div class="prem-card"><div class="prem-card-inner">
+            <h1 style="color:var(--gold); font-family:'Orbitron'; text-align:center;">SSS RANK ACHIEVED</h1>
+            <p style="text-align:center; font-size:13px; color:#fff; margin:20px 0;">Sistem telah mengakui kasta tertinggi anda.</p>
+            <button class="prem-btn" onclick="location.reload()">PROCEED</button>
+        </div></div>
+    </div>
+
+    <script>
+        // --- FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyC1Zsqjz0xYQahETJEfyz_BYomBhUTetR8",
+            authDomain: "wibustream-v1.firebaseapp.com",
+            projectId: "wibustream-v1",
+            databaseURL: "https://wibustream-v1-default-rtdb.firebaseio.com",
+            storageBucket: "wibustream-v1.firebasestorage.app",
+            appId: "1:956917540118:web:996a56d1103482ac32dc37"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        // --- MASTER GENRES (60+) ---
+        const masterGenres = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Horror", "Mystery", "Psychological", "Romance", "Sci-Fi", "Slice of Life", "Supernatural", "Thriller", "Ecchi", "Harem", "Isekai", "Mecha", "Military", "Music", "Parody", "Police", "Post-Apocalyptic", "Reverse Harem", "School", "Seinen", "Shoujo", "Shounen", "Space", "Sports", "Super Power", "Vampire", "Yaoi", "Yuri", "Magic", "Historical", "Game", "Demons", "Josei", "Martial Arts", "Kids", "Cars", "Dementia", "Samurai", "Cyberpunk", "Steampunk", "Bounty Hunters", "Crime", "Detective", "Disaster", "Espionage", "Family", "Gender Bender", "Gourmet", "Medical", "Political", "Reincarnation", "Survival", "Time Travel", "Tragedy", "War"];
+
+        const app = {
+            db: JSON.parse(localStorage.getItem('W_OVERLORD_DB')) || [],
+            user: JSON.parse(localStorage.getItem('W_OVERLORD_USER')) || { name: "", lv: 1, exp: 0, maxExp: 1000, role: "Bronze User", isPremium: false },
+            top: JSON.parse(localStorage.getItem('W_OVERLORD_TOP')) || {},
+            history: JSON.parse(localStorage.getItem('W_OVERLORD_HIST')) || [],
+            currDay: 'Senin',
+            idx: 0,
+            pfp: '',
+
+            init() {
+                auth.onAuthStateChanged(user => {
+                    setTimeout(() => {
+                        document.getElementById('loader').style.display = 'none';
+                        if (user) {
+                            this.user.name = user.displayName;
+                            this.pfp = user.photoURL;
+                            document.getElementById('login-gate').style.display = 'none';
+                            document.getElementById('app').style.display = 'block';
+                            this.renderAll();
+                            this.startSlider();
+                        } else {
+                            document.getElementById('login-gate').style.display = 'flex';
+                        }
+                    }, 2000);
+                });
+            },
+
+            login() { auth.signInWithPopup(provider); },
+            logout() { auth.signOut().then(() => location.reload()); },
+
+            renderAll() {
+                this.updateHUD();
+                this.renderGenres();
+                this.renderHome();
+                this.renderJadwal();
+                this.renderHistory();
+                this.renderAdminGenres();
+            },
+
+            updateHUD() {
+                document.getElementById('u-pfp').src = this.pfp;
+                document.getElementById('u-name').innerText = this.user.name;
+                document.getElementById('u-rank').innerText = this.user.role;
+                document.getElementById('u-lv').innerText = this.user.lv;
+                document.getElementById('u-exp').innerText = this.user.exp;
+                document.getElementById('u-max-exp').innerText = this.user.maxExp;
+                document.getElementById('u-badge').innerText = this.user.isPremium ? "SSS" : "PRO";
+                document.getElementById('u-badge').style.background = this.user.isPremium ? "var(--gold)" : "var(--blue)";
+                const pct = (this.user.exp / this.user.maxExp) * 100;
+                document.getElementById('u-exp-fill').style.width = pct + "%";
+            },
+
+            renderGenres() {
+                const c = document.getElementById('genre-list');
+                c.innerHTML = `<div class="genre-item active" onclick="app.filterGenre('All', this)">ALL CATEGORY</div>` + 
+                    masterGenres.map(g => `<div class="genre-item" onclick="app.filterGenre('${g}', this)">${g}</div>`).join('');
+            },
+
+            renderAdminGenres() {
+                document.getElementById('admin-genre-list').innerHTML = masterGenres.map(g => `
+                    <label><input type="checkbox" value="${g}"> <span>${g}</span></label>
+                `).join('');
+            },
+
+            publish() {
+                const title = document.getElementById('g-title').value;
+                const poster = document.getElementById('g-poster').value;
+                const banner = document.getElementById('g-banner').value;
+                const day = document.getElementById('g-day').value;
+                const slot = document.getElementById('g-top-slot').value;
+                const genres = Array.from(document.querySelectorAll('#admin-genre-list input:checked')).map(i => i.value);
+                
+                if(!title || !poster) return alert("System Error: Title & Poster Required!");
+                
+                const id = Date.now();
+                this.db.push({ id, title, poster, banner, day, genres });
+                if(slot >= 1 && slot <= 10) this.top[slot] = id;
+                
+                localStorage.setItem('W_OVERLORD_DB', JSON.stringify(this.db));
+                localStorage.setItem('W_OVERLORD_TOP', JSON.stringify(this.top));
+                alert("Data Injected Successfully!");
+                location.reload();
+            },
+
+            renderHome() {
+                document.getElementById('main-grid').innerHTML = this.db.map(a => this.cardTemplate(a)).join('');
+                let tG = ""; for(let i=1; i<=10; i++) {
+                    const a = this.db.find(x => x.id == this.top[i]);
+                    if(a) tG += `<div class="top-box" onclick="app.watch(${a.id})"><div class="top-num">${i}</div><div class="top-img"><img src="${a.poster}"></div></div>`;
+                }
+                document.getElementById('top-grid').innerHTML = tG || '<p style="padding:20px; opacity:0.3; font-size:12px;">No Top Ranking Yet.</p>';
+                
+                const bns = this.db.filter(x => x.banner);
+                document.getElementById('banner-engine').innerHTML = bns.length ? bns.map(a => `
+                    <div class="slide-item">${a.banner.includes('mp4') ? `<video autoplay muted loop><source src="${a.banner}"></video>` : `<img src="${a.banner}">`}</div>
+                `).join('') : '<div class="slide-item"><img src="https://wallpaperaccess.com/full/199430.jpg"></div>';
+            },
+
+            cardTemplate(a) { 
+                return `<div class="anime-card" onclick="app.watch(${a.id})"><img src="${a.poster}"><div class="anime-card-info"><span class="anime-tag">${a.genres[0] || 'Overlord Choice'}</span><b>${a.title}</b></div></div>`; 
+            },
+
+            watch(id) {
+                const a = this.db.find(x => x.id === id);
+                if(!this.history.find(x => x.id === id)) { this.history.unshift(a); localStorage.setItem('W_OVERLORD_HIST', JSON.stringify(this.history)); }
+                
+                this.user.exp += 150; 
+                if(this.user.exp >= this.user.maxExp) { 
+                    this.user.lv++; this.user.exp = 0; this.user.maxExp += 500; 
+                    alert("SYSTEM NOTIFICATION: LEVEL UP TO " + this.user.lv);
+                }
+                localStorage.setItem('W_OVERLORD_USER', JSON.stringify(this.user));
+                this.updateHUD(); 
+                alert("Initializing Stream for: " + a.title);
+            },
+
+            filterGenre(g, el) {
+                document.querySelectorAll('.genre-item').forEach(i => i.classList.remove('active')); el.classList.add('active');
+                const f = g === 'All' ? this.db : this.db.filter(a => a.genres.includes(g));
+                document.getElementById('main-grid').innerHTML = f.map(a => this.cardTemplate(a)).join('');
+            },
+
+            search(q) {
+                const f = this.db.filter(a => a.title.toLowerCase().includes(q.toLowerCase()));
+                document.getElementById('main-grid').innerHTML = f.map(a => this.cardTemplate(a)).join('');
+            },
+
+            setDay(d, el) {
+                this.currDay = d; document.querySelectorAll('#day-list .genre-item').forEach(i => i.classList.remove('active')); el.classList.add('active');
+                const f = this.db.filter(a => a.day === d);
+                document.getElementById('jadwal-grid').innerHTML = f.length ? f.map(a => this.cardTemplate(a)).join('') : '<p style="padding:40px; text-align:center; opacity:0.3; font-size:12px;">Sistem Sedang Maintenance Untuk Hari Ini.</p>';
+            },
+
+            renderJadwal() { this.setDay('Senin', document.querySelector('#day-list .genre-item')); },
+            renderHistory() { document.getElementById('history-grid').innerHTML = this.history.map(a => this.cardTemplate(a)).join(''); },
+
+            applyUser() {
+                const n = document.getElementById('g-u-name').value;
+                const l = document.getElementById('g-u-lv').value;
+                const r = document.getElementById('g-u-role').value;
+                if(n) this.user.name = n; if(l) this.user.lv = parseInt(l); if(r) this.user.role = r;
+                localStorage.setItem('W_OVERLORD_USER', JSON.stringify(this.user)); location.reload();
+            },
+
+            buyPremium() { 
+                this.user.isPremium = true; 
+                this.user.role = "SSS-RANK OVERLORD"; 
+                localStorage.setItem('W_OVERLORD_USER', JSON.stringify(this.user)); 
+                document.getElementById('prem-success').style.display = 'flex'; 
+            },
+
+            startSlider() { 
+                const s = document.getElementById('banner-engine'); 
+                if(s.children.length > 1) setInterval(() => { 
+                    this.idx = (this.idx + 1) % s.children.length; 
+                    s.style.transform = `translateX(-${this.idx * 100}%)`; 
+                }, 5000); 
+            },
+
+            nav(p, el) { 
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); 
+                document.getElementById('p-' + p).classList.add('active'); 
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active')); 
+                el.classList.add('active'); 
+                if(p === 'history') this.renderHistory();
+                if(p === 'jadwal') this.renderJadwal();
+            },
+
+            toggleGod() { 
+                const g = document.getElementById('god'); 
+                g.style.display = (g.style.display === 'block') ? 'none' : 'block'; 
+            },
+
+            resetData() { 
+                if(confirm("SISTEM AKAN DI-WIPE TOTAL. LANJUTKAN?")) { 
+                    localStorage.clear(); location.reload(); 
+                } 
+            }
+        };
+
+        app.init();
+    </script>
+</body>
+</html>
